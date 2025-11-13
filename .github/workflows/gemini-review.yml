@@ -1,0 +1,272 @@
+name: Gemini File-based Review and Commit
+
+on:
+  push:
+    # 全てのブランチへのプッシュをトリガーとします。
+    # レビュー結果のプッシュ先は ${{ github.ref_name }} で動的に決定されます。
+    
+# コミットとプッシュに必要な権限を設定
+permissions:
+  contents: write
+
+jobs:
+  review_and_commit:
+    runs-on: ubuntu-latest
+    # UTF-8エンコーディングを環境全体で統一設定
+    env:
+      LANG: ja_JP.UTF-8
+      LC_ALL: ja_JP.UTF-8
+    
+    steps:
+      - name: ⬇️ リポジトリのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # プッシュバックのために認証情報を保持
+          persist-credentials: true
+          fetch-depth: 0 # 変更されたファイルを正確に取得するために履歴全体を取得
+
+      - name: 🔧 Pythonのセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🔧 Gemini CLIのセットアップ
+        run: |
+          # Python経由でGoogle Generative AIをインストール
+          pip install google-generativeai
+          
+          # geminiコマンドのラッパースクリプトを作成
+          sudo tee /usr/local/bin/gemini > /dev/null << 'EOF'
+          #!/usr/bin/env python3
+          import sys
+          import os
+          import google.generativeai as genai
+          
+          def main():
+              if len(sys.argv) < 2:
+                  print("Usage: gemini ask <prompt> [--file-path <path>]", file=sys.stderr)
+                  sys.exit(1)
+              
+              if sys.argv[1] != "ask":
+                  print(f"Unknown command: {sys.argv[1]}", file=sys.stderr)
+                  sys.exit(1)
+              
+              # APIキーを取得
+              api_key = os.getenv('GEMINI_API_KEY')
+              if not api_key:
+                  print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
+                  sys.exit(1)
+              
+              genai.configure(api_key=api_key)
+              
+              # プロンプトとファイルパスを取得
+              prompt = sys.argv[2] if len(sys.argv) > 2 else ""
+              file_path = None
+              
+              if '--file-path' in sys.argv:
+                  file_idx = sys.argv.index('--file-path')
+                  if file_idx + 1 < len(sys.argv):
+                      file_path = sys.argv[file_idx + 1]
+              
+              # ファイルの内容を読み込む
+              file_content = ""
+              if file_path:
+                  if not os.path.exists(file_path):
+                      print(f"Warning: File does not exist: {file_path}", file=sys.stderr)
+                      print(f"Current working directory: {os.getcwd()}", file=sys.stderr)
+                  else:
+                      try:
+                          with open(file_path, 'r', encoding='utf-8') as f:
+                              file_content = f.read()
+                          print(f"Successfully read file: {file_path} ({len(file_content)} bytes)", file=sys.stderr)
+                      except Exception as e:
+                          print(f"Error reading file {file_path}: {e}", file=sys.stderr)
+              
+              # プロンプトを構築
+              # file_pathが指定されている場合は、たとえファイルが空でもファイル情報を含める
+              if file_path:
+                  full_prompt = f"{prompt}\n\nFile: {file_path}\n\n```\n{file_content}\n```"
+              else:
+                  full_prompt = prompt
+              
+              # Gemini APIを呼び出し
+              model_name = 'gemini-2.5-flash'
+              print(f"使用するモデル: {model_name}", file=sys.stderr)
+              model = genai.GenerativeModel(model_name)
+              response = model.generate_content(full_prompt)
+              print(f"モデルの呼び出し完了: {model_name}", file=sys.stderr)
+              
+              print(response.text)
+          
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          sudo chmod +x /usr/local/bin/gemini
+        
+      - name: 🔧 Git設定（非ASCII文字のエスケープを無効化）
+        run: |
+          # 非ASCII文字（日本語など）を含むファイルパスがエスケープされないように設定
+          git config --global core.quotepath false
+        
+      - name: 📋 レビュー対象拡張子の読み込み
+        id: load-extensions
+        run: |
+          # CSVファイルから拡張子を読み込んでfile patternsを生成
+          echo "extensions_pattern<<EOF" >> "$GITHUB_OUTPUT"
+          tail -n +2 docs/target-extensions.csv | while read ext; do
+            # 空行をスキップ
+            if [ -n "$ext" ]; then
+              echo "**/*${ext}" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          echo "EOF" >> "$GITHUB_OUTPUT"
+        
+      - name: 🔍 変更されたファイルの特定
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          # レビュー対象とするファイルの拡張子を設定
+          files: |
+            ${{ steps.load-extensions.outputs.extensions_pattern }}
+            !**/*.d.ts
+          # 非ASCII文字を含むファイルパスを正しく処理するため
+          quotepath: false
+          # カンマ区切りで出力（スペースや特殊文字を含むファイル名に対応）
+          separator: ","
+
+      - name: "🔍 デバッグ: 変更されたファイルの出力確認"
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "--- all_changed_files の出力 (カンマ区切り) ---"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "------------------------------------"
+          echo "ファイル数: ${{ steps.changed-files.outputs.all_changed_files_count }}"
+
+      - name: 🔧 ファイルパスの復元処理（Python）
+        id: decode-files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          python3 << 'EOF'
+          import os
+          import sys
+          
+          # 環境変数から変更されたファイルの一覧を取得
+          raw = os.environ.get('CHANGED_FILES_RAW', '')
+          if not raw:
+              print("No files to decode", file=sys.stderr)
+              sys.exit(0)
+          
+          # カンマで区切ってファイルリストを作成
+          # 各ファイル名のエスケープシーケンス（8進数）をデコードまたはバックスラッシュを除去
+          files = []
+          for f in raw.split(','):
+              f = f.strip()
+              if f:
+                  # バックスラッシュ+8進数エスケープをデコード
+                  try:
+                      # unicode_escapeでバックスラッシュシーケンスを解釈し、
+                      # latin1経由でバイト列として扱い、UTF-8としてデコード
+                      decoded = bytes(f, 'utf-8').decode('unicode_escape').encode('latin1').decode('utf-8')
+                      # デコード後もバックスラッシュが残っている場合は除去
+                      # （GitがUTF-8文字の前にエスケープバックスラッシュを付ける場合の対応）
+                      if '\\' in decoded:
+                          decoded = decoded.replace('\\', '')
+                      files.append(decoded)
+                  except Exception as e:
+                      # デコードに失敗した場合は、バックスラッシュを除去して使用
+                      print(f"Info: Decode failed for '{f}': {e}", file=sys.stderr)
+                      cleaned = f.replace('\\', '')
+                      print(f"Info: Using cleaned path: '{cleaned}'", file=sys.stderr)
+                      files.append(cleaned)
+          
+          # デコードされたファイルリストを出力
+          if files:
+              with open('decoded_files.txt', 'w', encoding='utf-8') as out:
+                  for f in files:
+                      out.write(f + '\n')
+              print(f"Successfully decoded {len(files)} file(s)", file=sys.stderr)
+              for f in files:
+                  print(f"  - {f}", file=sys.stderr)
+          else:
+              print("No files after decoding", file=sys.stderr)
+          EOF
+        env:
+          CHANGED_FILES_RAW: ${{ steps.changed-files.outputs.all_changed_files }}
+
+      - name: ⚙️ ファイルごとのレビューの実行と結果の保存
+        id: review_process
+        # 変更されたファイルがある場合のみ実行
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REVIEW_BASE_DIR: review # レビュー結果を保存する特定のディレクトリ
+        run: |
+          # GEMINI_API_KEYが設定されているか確認
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "Error: GEMINI_API_KEY is not set"
+            exit 1
+          fi
+          # 1. 出力ディレクトリの決定と作成 (yyyyMMdd形式、日本時間)
+          REVIEW_DATE_DIR=$(TZ='Asia/Tokyo' date +"%Y%m%d")
+          FULL_REVIEW_PATH="${REVIEW_BASE_DIR}/${REVIEW_DATE_DIR}"
+          echo "レビュー結果ディレクトリ: ${FULL_REVIEW_PATH}"
+          mkdir -p $FULL_REVIEW_PATH
+
+          REVIEW_COUNT=0
+          
+          # 2. 変更されたファイルをループ処理
+          # Pythonでデコードされたファイルリストから読み込む
+          if [ ! -f "decoded_files.txt" ]; then
+              echo "Error: decoded_files.txt not found"
+              exit 1
+          fi
+          
+          while IFS= read -r file; do
+              # 空のエントリをスキップ
+              if [ -z "$file" ]; then
+                  continue
+              fi
+
+              # 3. レビュー結果のファイル名を決定 (例: path/to/file.ts -> file.md)
+              filename=$(basename -- "$file")
+              # 拡張子を除去し、.mdを追加
+              review_filename="${filename%.*}.md" 
+              review_file_path="${FULL_REVIEW_PATH}/${review_filename}"
+              
+              echo "✅ レビュー対象: $file -> ${review_file_path}"
+              
+              # 4. Gemini CLIを実行し、結果をファイルに保存
+              # --file-pathオプションでファイルの内容を渡す
+              gemini ask "$(cat docs/instruction-review.md)" --file-path "$file" > "$review_file_path"
+              
+              if [ $? -eq 0 ] && [ -s "$review_file_path" ]; then
+                  # 成功かつファイルサイズが0より大きい場合
+                  REVIEW_COUNT=$((REVIEW_COUNT + 1))
+              else
+                  echo "🚨 Gemini CLIの実行に失敗または空の結果が返されました。ファイルを削除します: $review_file_path"
+                  rm -f "$review_file_path"
+              fi
+          done < "decoded_files.txt"
+          
+          # 5. コミット対象のディレクトリを次のステップに渡す
+          if [ "$REVIEW_COUNT" -gt 0 ]; then
+              echo "files_to_commit=${FULL_REVIEW_PATH}" >> "$GITHUB_OUTPUT"
+          else
+              # レビューが一つも生成されなかった場合、空の文字列を設定してスキップ
+              echo "files_to_commit=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 🚀 レビュー結果のコミットとプッシュ
+        # レビュー結果が1つ以上生成された場合のみ実行
+        if: steps.review_process.outputs.files_to_commit != ''
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'feat: Geminiによる自動コードレビュー結果を追加 (${{ github.sha }})'
+          # レビュー結果が保存された yyyyMMdd ディレクトリ全体をコミット対象とする
+          files: ${{ steps.review_process.outputs.files_to_commit }}
+          # プッシュされたブランチと同じブランチにコミット
+          branch: ${{ github.ref_name }} 
+          commit_user_name: 'gemini-cli-reviewer[bot]' 
+          commit_user_email: 'gemini-cli-reviewer[bot]@users.noreply.github.com'
+          skip_ci: true
