@@ -143,5 +143,5 @@ jobs:
       - name: 🧹 一時ファイルのクリーンアップ
         if: always()
         run: |
-          rm -f ocr_files_list.txt
+          rm -f ocr_files_list.txt decoded_files.txt
 
