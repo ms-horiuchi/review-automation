@@ -98,6 +98,9 @@ def process_images_to_ocr(image_files_csv: str, output_base_dir: str = "ocr_outp
         except Exception as e:
             print(f"Error processing {img_file}: {e}", file=sys.stderr)
     
+    # 処理完了メッセージ
+    print(f"Successfully processed {processed_count} of {len(image_files)} images", file=sys.stderr)
+    
     # OCR結果ファイルリストを作成
     ocr_files = sorted(output_dir.glob('*.txt'))
     list_file = Path('ocr_files_list.txt')
