@@ -27,24 +27,29 @@ from decode_file_paths import decode_file_path
 
 # 二値化の閾値（0-255の範囲で、この値より大きいピクセルは白、以下は黒になる）
 BINARIZATION_THRESHOLD = 128
+# OCR画像前処理の定数
+CONTRAST_ENHANCEMENT_FACTOR = 2.0
 
 
 def preprocess_image(image):
     """
     OCR精度向上のための画像前処理
-    
+
+    この前処理は画像をグレースケール化し、コントラスト強調・シャープネス強化・二値化を行います。
+    そのため、カラー情報は失われます。カラー文字や複雑な背景を含む画像には適さない場合があります。
+    単純な白黒テキスト画像や、色がOCR精度に影響しない場合にのみ適用してください。
+
     Args:
         image: PIL.Image オブジェクト
-    
     Returns:
         前処理済みのPIL.Image オブジェクト
     """
     # グレースケール化
     image = image.convert('L')
     
-    # コントラスト強調（2倍）
+    # コントラスト強調
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+    image = enhancer.enhance(CONTRAST_ENHANCEMENT_FACTOR)
     
     # シャープネス強化
     image = image.filter(ImageFilter.SHARPEN)
