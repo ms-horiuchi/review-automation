@@ -5,6 +5,11 @@ on:
     # 全てのブランチへのプッシュをトリガーとします。
     # レビュー結果のプッシュ先は ${{ github.ref_name }} で動的に決定されます。
     
+# 同時実行制御: 同一リポジトリでこのワークフローが同時に走る場合は待機させる
+concurrency:
+  group: gemini-review-${{ github.repository }}
+  cancel-in-progress: false
+
 # コミットとプッシュに必要な権限を設定
 permissions:
   contents: write
