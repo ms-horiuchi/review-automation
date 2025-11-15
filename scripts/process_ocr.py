@@ -25,6 +25,9 @@ import pyocr.builders
 # decode_file_paths.py から関数をインポート
 from decode_file_paths import decode_file_path
 
+# OCR画像前処理の定数
+CONTRAST_ENHANCEMENT_FACTOR = 2.0
+
 
 def preprocess_image(image):
     """
@@ -39,9 +42,9 @@ def preprocess_image(image):
     # グレースケール化
     image = image.convert('L')
     
-    # コントラスト強調（2倍）
+    # コントラスト強調
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+    image = enhancer.enhance(CONTRAST_ENHANCEMENT_FACTOR)
     
     # シャープネス強化
     image = image.filter(ImageFilter.SHARPEN)
