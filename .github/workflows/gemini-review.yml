@@ -91,7 +91,7 @@ jobs:
           quotepath: false
           separator: ","
 
-      - name: 🔧 ImageMagick/Tesseractのインストール
+      - name: 🔧 Tesseractのインストール
         if: steps.changed-images.outputs.any_changed == 'true'
         run: |
           sudo apt-get update
