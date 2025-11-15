@@ -17,7 +17,7 @@ Requirements:
 """
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from PIL import Image
 import pyocr
 import pyocr.builders
@@ -49,7 +49,7 @@ def process_images_to_ocr(image_files_csv: str, output_base_dir: str = "ocr_outp
     print(f"OCR language: {lang}", file=sys.stderr)
     
     # 出力ディレクトリの決定（yyyyMMdd形式、日本時間）
-    date_dir = datetime.now().strftime("%Y%m%d")
+    date_dir = datetime.now(timezone(timedelta(hours=9))).strftime("%Y%m%d")
     base_path = Path(output_base_dir) / date_dir
     output_dir = base_path
     index = 0
