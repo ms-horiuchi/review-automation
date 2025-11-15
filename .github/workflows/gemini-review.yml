@@ -52,11 +52,16 @@ jobs:
         with:
           # 前回のリモートプッシュ以降の全コミットの変更を取得
           since_last_remote_commit: true
-          # レビュー対象とするファイルの拡張子を設定
+          # レビュー対象とするファイルの拡張子を設定（CSVから読み込んだもののみ）
           files: |
             ${{ steps.load-extensions.outputs.extensions_pattern }}
-            !**/*.d.ts
-            !scripts/**
+          # 除外パターン（.d.ts、scriptsディレクトリ、docsディレクトリ、OCR結果、レビュー結果）
+          files_ignore: |
+            **/*.d.ts
+            scripts/**
+            docs/**
+            ocr_outputs/**
+            review/**
           # 非ASCII文字を含むファイルパスを正しく処理するため
           quotepath: false
           # カンマ区切りで出力（スペースや特殊文字を含むファイル名に対応）
