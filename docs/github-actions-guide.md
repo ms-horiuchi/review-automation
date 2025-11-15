@@ -11,9 +11,9 @@
   - `docs/target-extensions.csv`: 監視対象のファイル拡張子を列挙した CSV。1 行目はヘッダー、2 行目以降に `.ts` のような拡張子を並べます（CRLF/LF どちらでも可）。
   - `docs/instruction-review.md`: 基本プロンプト。
   - `docs/instruction-review-custom.md`: ファイル種別ごとの追加指示（任意）。
-- **スクリプト**:
+- **スクリプト**: 
   - `scripts/decode_file_paths.py`: GitHub Actions の出力からファイルパスを安全に復元し、`decoded_files.txt` を生成します。
-  - `scripts/gemini_cli_wrapper.py`: Gemini API にまとめて問い合わせ、レビュー結果を保存します。
+  - `scripts/gemini_cli_wrapper.py`: Gemini API にまとめて問い合わせ、レビュー結果を保存します（ただし `scripts/` 配下のコードはレビュー対象から除外されています）。
 
 ## トリガーと動作フロー
 ワークフローはすべてのブランチへの Push をトリガーに実行されます。処理は以下のステップで構成されています。
@@ -23,16 +23,16 @@
 3. **依存パッケージのインストール**: `pip install google-generativeai` を実行します。バージョンを固定したい場合は `requirements.txt` を用意し、`pip install -r` に置き換えてください。
 4. **Git 設定**: `core.quotepath=false` を設定し、日本語などのファイル名をエスケープしないようにします。
 5. **レビュー対象拡張子の読み込み**: `docs/target-extensions.csv` を読み込み、`tj-actions/changed-files` の `files` 入力に渡す glob パターン（`**/*.ts` など）を生成します。`tr -d '\r'` を挿んでいるため、CRLF と LF のどちらでも安全に動作します。
-6. **変更ファイルの抽出**: `tj-actions/changed-files@v45` で対象拡張子の変更を洗い出し、カンマ区切りの一覧を出力します。`.d.ts` は明示的に除外しています。
+6. **変更ファイルの抽出**: `tj-actions/changed-files@v45` で対象拡張子の変更を洗い出し、カンマ区切りの一覧を出力します。`.d.ts` や `scripts/` 配下のファイルは明示的に除外しています。
 7. **ファイル名デコード**: 変更ファイルが存在する場合のみ `scripts/decode_file_paths.py` を実行し、`decoded_files.txt` に UTF-8 のファイルリストを落とします。
 8. **レビュー実行** (`review_process` step):
    - `review/YYYYMMDD` をベースに、同日に複数実行された場合は `_1`, `_2` ... を付与してユニークなディレクトリを作成します。
-   - `scripts/gemini_cli_wrapper.py batch-review docs/instruction-review.md decoded_files.txt <出力パス> --custom-prompt docs/instruction-review-custom.md` を呼び出し、各ファイルのレビュー結果 (`.txt`) を出力します。
-   - 出力された `.txt` ファイル数を計測し、1 件以上あれば次ステップへディレクトリパスを共有します。
+  - `scripts/gemini_cli_wrapper.py batch-review docs/instruction-review.md decoded_files.txt <出力パス> --custom-prompt docs/instruction-review-custom.md` を呼び出し、各ファイルのレビュー結果 (`.md`) を出力します。
+  - 出力された `.md` ファイル数を計測し、1 件以上あれば次ステップへディレクトリパスを共有します。
 9. **コミット&プッシュ**: `stefanzweifel/git-auto-commit-action@v5` がレビュー結果ディレクトリ全体をコミットし、トリガー元と同じブランチにプッシュします。コミットメッセージは `feat: Geminiによる自動コードレビュー結果を追加 (<sha>)` です。
 
 ## 実行結果の確認
-- `review/<日付>[_N]/` 配下にファイル単位のレビューが保存されます。
+- `review/<日付>[_N]/` 配下にファイル単位のレビュー (`.md`) が保存されます。
 - Actions 実行ログでは `生成されたレビューファイル数` として作成件数が表示されます。
 - コミットは `gemini-cli-reviewer[bot]` ユーザーで行われます。
 
@@ -45,4 +45,4 @@
 ## トラブルシューティング
 - `GEMINI_API_KEY is not set` と表示された場合は Secrets の設定を再確認してください。
 - `decoded_files.txt not found` が発生する場合、`decode-files` ステップがスキップされていないかログを確認し、`changed-files` の対象拡張子設定を見直してください。
-- API 呼び出しエラーで `.txt` が生成されない場合は、`review_process` ステップのログを展開し、`scripts/gemini_cli_wrapper.py` の例外メッセージを確認してください。
+- API 呼び出しエラーで `.md` が生成されない場合は、`review_process` ステップのログを展開し、`scripts/gemini_cli_wrapper.py` の例外メッセージを確認してください。
