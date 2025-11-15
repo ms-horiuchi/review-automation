@@ -12,7 +12,6 @@ Output:
 """
 import csv
 import sys
-from pathlib import Path
 
 
 def load_extension_patterns(csv_path: str = "docs/target-extensions.csv"):
