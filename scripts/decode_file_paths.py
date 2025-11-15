@@ -2,6 +2,78 @@
 import os
 import sys
 import re
+import csv
+from pathlib import Path
+
+EXCLUDED_PREFIXES = (
+    '.github/',
+    'scripts/',
+    'docs/',
+    'ocr_outputs/',
+    'review/'
+)
+GENERATED_FILES = {
+    'decoded_files.txt',
+    'ocr_files_list.txt'
+}
+
+
+def load_allowed_extensions(csv_path: str = "docs/target-extensions.csv") -> set[str]:
+    """CSVに記載された拡張子だけを対象にするためのセットを返す"""
+    extensions: set[str] = set()
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                ext = row.get('extension', '').strip().lower()
+                if ext:
+                    extensions.add(ext)
+    except FileNotFoundError:
+        print(f"Error: {csv_path} not found", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading extensions: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not extensions:
+        print("Warning: No extensions loaded; no files will be reviewed", file=sys.stderr)
+    return extensions
+
+
+def is_allowed_target(path_str: str, allowed_exts: set[str]) -> bool:
+    """target-extensions.csvに記載された拡張子のみを許可"""
+    if not path_str:
+        return False
+
+    normalized = path_str.replace('\\', '/').lstrip('./')
+    lower_path = normalized.lower()
+
+    if any(lower_path.startswith(prefix) for prefix in EXCLUDED_PREFIXES):
+        return False
+
+    file_name = Path(lower_path).name
+    if file_name in GENERATED_FILES:
+        return False
+
+    if lower_path.endswith('.d.ts'):
+        return False
+
+    path_obj = Path(lower_path)
+    suffixes = path_obj.suffixes
+    if not suffixes:
+        return False
+
+    # 単一拡張子（例: .ts）
+    primary_suffix = suffixes[-1].lower()
+    if primary_suffix in allowed_exts:
+        return True
+
+    # 複数拡張子（例: .d.ts）
+    full_suffix = ''.join(suffixes).lower()
+    if full_suffix in allowed_exts:
+        return True
+
+    return False
 
 def decode_file_path(file_path: str) -> str:
     """
@@ -85,23 +157,45 @@ def decode_file_paths(raw_files_string, output_file='decoded_files.txt'):
         print("No files to decode", file=sys.stderr)
         sys.exit(0)
     
+    allowed_extensions = load_allowed_extensions()
+
     # カンマで区切ってファイルリストを作成
-    files = []
+    decoded_candidates = []
     for f in raw_files_string.split(','):
         f = f.strip()
         if f:
-            files.append(decode_file_path(f))
+            decoded_candidates.append(decode_file_path(f))
+
+    filtered_files = []
+    skipped_files = []
+    for path in decoded_candidates:
+        if is_allowed_target(path, allowed_extensions):
+            filtered_files.append(path)
+        else:
+            skipped_files.append(path)
     
     # デコードされたファイルリストを出力
-    if files:
+    if filtered_files:
         with open(output_file, 'w', encoding='utf-8') as out:
-            for f in files:
+            for f in filtered_files:
                 out.write(f + '\n')
-        print(f"Successfully decoded {len(files)} file(s)", file=sys.stderr)
-        for f in files:
+        print(f"Successfully decoded {len(filtered_files)} file(s)", file=sys.stderr)
+        for f in filtered_files:
             print(f"  - {f}", file=sys.stderr)
+        if skipped_files:
+            print(f"Skipped {len(skipped_files)} file(s) due to extension or path rules", file=sys.stderr)
+            for f in skipped_files:
+                print(f"  - {f}", file=sys.stderr)
     else:
-        print("No files after decoding", file=sys.stderr)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        if decoded_candidates:
+            print("No files matched allowed extensions after decoding", file=sys.stderr)
+            if skipped_files:
+                for f in skipped_files:
+                    print(f"  - skipped: {f}", file=sys.stderr)
+        else:
+            print("No files after decoding", file=sys.stderr)
 
 def main():
     # 環境変数から変更されたファイルの一覧を取得

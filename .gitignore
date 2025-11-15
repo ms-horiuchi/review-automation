@@ -43,3 +43,4 @@ Thumbs.db
 # OCR outputs
 ocr_outputs/
 ocr_files_list.txt
+decoded_files.txt
