@@ -32,10 +32,22 @@ flowchart TD
   F --> Output[review/yyyyMMdd/*.md]
 
    G --> OCRText[OCR テキストファイル]
-   OCRText --> E;
+   OCRText --> E
 
-   note right of C: decode_file_paths<br/>path decoding<br/>extension filter<br/>route OCR candidates
-   note right of F: gemini_cli_wrapper<br/>upload prompt md<br/>reuse cached prompt IDs<br/>call Gemini model<br/>write error tracebacks to output md
+   note right of C
+      decode_file_paths
+      path decoding
+      extension filter
+      route OCR candidates
+   end
+
+   note right of F
+      gemini_cli_wrapper
+      upload prompt md
+      reuse cached prompt IDs
+      call Gemini model
+      write error tracebacks to output md
+   end
 ```
 
 ---
