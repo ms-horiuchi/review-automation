@@ -10,7 +10,8 @@ EXCLUDED_PREFIXES = (
     'scripts/',
     'docs/',
     'ocr_outputs/',
-    'review/'
+    'review/',
+    'manual/'
 )
 GENERATED_FILES = {
     'decoded_files.txt',

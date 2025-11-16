@@ -37,7 +37,8 @@ jobs:
 
       - name: 🔧 依存パッケージのインストール
         run: |
-          pip install google-generativeai pyocr pillow
+          python -m pip install --upgrade pip
+          python -m pip install google-generativeai pyocr pillow pytest
         
       - name: 🔧 Git設定（非ASCII文字のエスケープを無効化）
         run: |
@@ -47,9 +48,12 @@ jobs:
       - name: 📋 レビュー対象拡張子の読み込み
         id: load-extensions
         run: |
+          output=$(python scripts/load_extensions.py)
           echo "extensions_pattern<<EOF" >> "$GITHUB_OUTPUT"
-          python scripts/load_extensions.py
+          echo "$output" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "[debug] extensions_pattern:"
+          echo "$output"
         
       - name: 🔍 変更されたファイルの特定
         id: changed-files
@@ -97,6 +101,9 @@ jobs:
             **/*.png
             **/*.jpg
             **/*.jpeg
+            **/*.PNG
+            **/*.JPG
+            **/*.JPEG
           quotepath: false
           separator: ","
 
@@ -110,6 +117,7 @@ jobs:
         id: ocr-process
         if: steps.changed-images.outputs.any_changed == 'true'
         run: |
+          set -o pipefail
           python scripts/process_ocr.py "${{ steps.changed-images.outputs.all_changed_files }}" ocr_outputs | tee -a "$GITHUB_OUTPUT"
 
       - name: ⚙️ ファイルごとのレビューの実行と結果の保存
@@ -121,6 +129,7 @@ jobs:
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           REVIEW_BASE_DIR: review
         run: |
+          set -o pipefail
           python scripts/run_reviews.py | tee -a "$GITHUB_OUTPUT"
 
       - name: 🚀 レビュー結果のコミットとプッシュ

@@ -8,7 +8,7 @@
   - `GEMINI_API_KEY` (必須): Google Gemini API キー。
   - `GEMINI_MODEL` (任意): 使用したいモデル名。未設定時は `scripts/gemini_cli_wrapper.py` が `gemini-2.5-flash` を既定で利用します。
 - **依存ファイル**:
-  - `docs/target-extensions.csv`: 監視対象のファイル拡張子を列挙した CSV。1 行目はヘッダー、2 行目以降に `.ts` のような拡張子を並べます（CRLF/LF どちらでも可）。
+  - `docs/target-extensions.csv`: 監視対象のファイル拡張子を列挙した CSV。**推奨:1 行目にヘッダー**(`extension,base_prompt,custom_prompt`) を置いてください。古いフォーマット（ヘッダー無し）の CSV もサポートしますが、ヘッダー付きが推奨です（CRLF/LF どちらでも可）。
   - `docs/instruction-review.md`: 基本プロンプト。
   - `docs/instruction-review-custom.md`: ファイル種別ごとの追加指示（任意）。
 - **スクリプト**: 
@@ -24,10 +24,12 @@
 4. **Git 設定**: `core.quotepath=false` を設定し、日本語などのファイル名をエスケープしないようにします。
 5. **レビュー対象拡張子の読み込み**: `docs/target-extensions.csv` を読み込み、`tj-actions/changed-files` の `files` 入力に渡す glob パターン（`**/*.ts` など）を生成します。`tr -d '\r'` を挿んでいるため、CRLF と LF のどちらでも安全に動作します。
 6. **変更ファイルの抽出**: `tj-actions/changed-files@v45` で対象拡張子の変更を洗い出し、カンマ区切りの一覧を出力します。`.d.ts` や `scripts/` 配下のファイルは明示的に除外しています。
+  - 参照: 画像ファイルは `changed-images` ステップで別途抽出します。拡張子に大文字（例: `.PNG`）がある場合もカバーするため、`**/*.PNG` なども含めています。
 7. **ファイル名デコード**: 変更ファイルが存在する場合のみ `scripts/decode_file_paths.py` を実行し、`decoded_files.txt` に UTF-8 のファイルリストを落とします。
 8. **レビュー実行** (`review_process` step):
    - `review/YYYYMMDD` をベースに、同日に複数実行された場合は `_1`, `_2` ... を付与してユニークなディレクトリを作成します。
   - `scripts/gemini_cli_wrapper.py batch-review docs/instruction-review.md decoded_files.txt <出力パス> --custom-prompt docs/instruction-review-custom.md` を呼び出し、各ファイルのレビュー結果 (`.md`) を出力します。
+  - `review_process` ステップに `set -o pipefail` を追加しているため、`scripts/run_reviews.py` や `scripts/gemini_cli_wrapper.py` の非ゼロ終了はステップ失敗として検出されます。
   - 出力された `.md` ファイル数を計測し、1 件以上あれば次ステップへディレクトリパスを共有します。
 9. **コミット&プッシュ**: `stefanzweifel/git-auto-commit-action@v5` がレビュー結果ディレクトリ全体をコミットし、トリガー元と同じブランチにプッシュします。コミットメッセージは `feat: Geminiによる自動コードレビュー結果を追加 (<sha>)` です。
 
@@ -44,5 +46,7 @@
 
 ## トラブルシューティング
 - `GEMINI_API_KEY is not set` と表示された場合は Secrets の設定を再確認してください。
+  - 備考: `run_reviews.py` はレビュー対象がない場合は早期終了（非エラー）するようになっています。レビュー対象がある場合は `GEMINI_API_KEY` 未設定で `Error: GEMINI_API_KEY is not set` を出力し、非ゼロで終了します（`set -o pipefail` のためワークフローも失敗します）。
 - `decoded_files.txt not found` が発生する場合、`decode-files` ステップがスキップされていないかログを確認し、`changed-files` の対象拡張子設定を見直してください。
 - API 呼び出しエラーで `.md` が生成されない場合は、`review_process` ステップのログを展開し、`scripts/gemini_cli_wrapper.py` の例外メッセージを確認してください。
+  - OCR について: `ocr_process` ステップは `set -o pipefail` を有効化しています。OCR の入力があるのに出力が生成されない場合、`process_ocr.py` は非ゼロで終了し、ステップは失敗します。

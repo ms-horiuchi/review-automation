@@ -175,6 +175,12 @@ def main():
         print(f"ocr_output_dir={ocr_dir}")
     else:
         print("ocr_output_dir=")
+        # image_files に対象があり処理が行われたが成果物がない場合はエラーとする
+        # （ワークフロー側で OCR 処理失敗と見なすため）
+        raw_files = [f.strip() for f in image_files.split(',') if f.strip()]
+        if raw_files:
+            print("Error: OCR processing failed or produced no outputs", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,8 @@
-extension
-.ts
-.js
-.tsx
-.jsx
-.py
-.java
-.go
-.rs
+extension,base_prompt,custom_prompt
+.ts,instruction-review-js.md,instruction-review-custom-js.md
+.js,instruction-review-js.md,instruction-review-custom-js.md
+.tsx,instruction-review-js.md,instruction-review-custom-js.md
+.jsx,instruction-review-js.md,instruction-review-custom-js.md
+.py,instruction-review-py.md,instruction-review-custom-py.md
+.java,instruction-review-java.md,instruction-review-custom-java.md
+.sh,instruction-review-sh.md,instruction-review-custom-sh.md

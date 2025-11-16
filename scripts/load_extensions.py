@@ -19,11 +19,22 @@ def load_extension_patterns(csv_path: str = "docs/target-extensions.csv"):
     patterns = []
     try:
         with open(csv_path, 'r', encoding='utf-8') as f:
+            # Try DictReader first (CSV with header: extension,base_prompt,custom_prompt)
             reader = csv.DictReader(f)
-            for row in reader:
-                ext = row.get('extension', '').strip()
-                if ext:
-                    patterns.append(f"**/*{ext}")
+            if 'extension' in reader.fieldnames:
+                for row in reader:
+                    ext = row.get('extension', '').strip()
+                    if ext:
+                        patterns.append(f"**/*{ext}")
+            else:
+                # Fallback: no header, read first column from raw rows
+                f.seek(0)
+                for row in csv.reader(f):
+                    if not row:
+                        continue
+                    ext = row[0].strip()
+                    if ext:
+                        patterns.append(f"**/*{ext}")
     except FileNotFoundError:
         print(f"Error: {csv_path} not found", file=sys.stderr)
         sys.exit(1)

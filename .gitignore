@@ -44,3 +44,5 @@ Thumbs.db
 ocr_outputs/
 ocr_files_list.txt
 decoded_files.txt
+# Prompt upload cache (Gemini file IDs)
+.prompt_upload_cache.json
