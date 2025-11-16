@@ -34,20 +34,13 @@ flowchart TD
    G --> OCRText[OCR テキストファイル]
    OCRText --> E
 
-   note right of C
-      decode_file_paths
-      path decoding
-      extension filter
-      route OCR candidates
-   end
+      %% decode_file_paths: path decoding, extension filter, route OCR candidates
+      %% gemini_cli_wrapper: upload prompt md, reuse cached prompt IDs, call Gemini model, write error tracebacks to output md
 
-   note right of F
-      gemini_cli_wrapper
-      upload prompt md
-      reuse cached prompt IDs
-      call Gemini model
-      write error tracebacks to output md
-   end
+### 補足
+
+- **decode_file_paths**: path decoding, extension filter, route OCR candidates
+- **gemini_cli_wrapper**: upload prompt md, reuse cached prompt IDs, call Gemini model, write error tracebacks to output md
 ```
 
 ---
