@@ -36,6 +36,27 @@ def determine_review_dir(base_dir: str = "review") -> Path:
     return output_dir
 
 
+def _has_review_targets(code_list: str = 'decoded_files.txt', ocr_list: str = 'ocr_files_list.txt') -> bool:
+    """デコード済みファイルリストまたはOCRファイルリストに実際のレビュー対象が含まれているか判定する
+
+    - 指定ファイルが存在し、かつ空行以外の行がある場合に True を返す
+    - 存在しない / 空のみ の場合は False を返す
+    """
+    for p in (code_list, ocr_list):
+        path = Path(p)
+        if not path.exists():
+            continue
+        try:
+            with path.open('r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        return True
+        except Exception:
+            # 何らかの理由で読めなければスキップ
+            continue
+    return False
+
+
 def run_batch_review(file_list: str, output_dir: Path, use_prompt_map: bool = False) -> bool:
     """バッチレビューを実行"""
     if not Path(file_list).exists():
@@ -74,7 +95,14 @@ def count_reviews(output_dir: Path) -> int:
 
 
 def main():
-    # 環境変数チェック
+    # レビュー対象の有無を確認し、対象がある場合のみ GEMINI_API_KEY を必須にする
+    if not _has_review_targets():
+        # レビュー対象が無いので早期終了させる（GitHub Actions の後続処理に渡す出力は維持）
+        print("No files to review: skip Gemini API calls", file=sys.stderr)
+        print("files_to_commit=")
+        print("review_count=0")
+        sys.exit(0)
+
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         print("Error: GEMINI_API_KEY is not set", file=sys.stderr)
