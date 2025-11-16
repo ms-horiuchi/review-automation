@@ -201,7 +201,10 @@ def run_review(prompt, file_path=None, model_name=None, prompt_file_ids=None):
     # prompt_file_idsが指定されている場合（リストまたは単一の文字列）
     contents = [full_prompt]
     contents.extend(build_prompt_file_parts(prompt_file_ids))
-    # Print what we pass in to the Gemini SDK for debugging purposes
+    # Print model info and the contents passed to the Gemini SDK so we can
+    # verify exactly what is being sent.
+    print(f"Model name variable: {model_name}", file=sys.stderr)
+    print(f"Model object repr: {repr(model)}", file=sys.stderr)
     print("Contents passed to model.generate_content:", contents, file=sys.stderr)
     response = model.generate_content(contents)
     print(response.text)
@@ -320,7 +323,10 @@ def batch_review_files(
 
             contents = [full_prompt]
             contents.extend(prompt_parts)
-            # Print what we pass in to the Gemini SDK for debugging purposes
+            # Print model info and the contents passed to the Gemini SDK so we can
+            # verify exactly what is being sent.
+            print(f"Model name variable: {model_name}", file=sys.stderr)
+            print(f"Model object repr: {repr(model)}", file=sys.stderr)
             print("Contents passed to model.generate_content:", contents, file=sys.stderr)
             response = model.generate_content(contents)
 
