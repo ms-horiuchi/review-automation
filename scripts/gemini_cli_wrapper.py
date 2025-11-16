@@ -6,6 +6,7 @@ import json
 import csv
 from pathlib import Path
 import google.generativeai as genai
+import traceback
 
 def setup_genai():
     # 環境変数からGEMINI_API_KEYを取得
@@ -263,6 +264,7 @@ def batch_review_files(
 
     print(f"Processing {len(files)} files...", file=sys.stderr)
     review_count = 0
+    had_failure = False
 
     default_prompt_paths = [
         os.path.abspath(p)
@@ -310,9 +312,10 @@ def batch_review_files(
 
         try:
             if not os.path.exists(file_path):
-                print(f"Warning: File does not exist: {file_path}", file=sys.stderr)
+                print(f"Error: File does not exist: {file_path}", file=sys.stderr)
                 with open(review_file_path, 'w', encoding='utf-8') as out:
                     out.write("自動レビューに失敗しました。ファイルが見つかりません。")
+                had_failure = True
                 continue
 
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -332,11 +335,24 @@ def batch_review_files(
             review_count += 1
 
         except Exception as e:
+            # 例外の詳細をstderrに出力し、レビュー結果ファイルにエラー内容を記録する
+            tb = traceback.format_exc()
             print(f"🚨 レビュー失敗: {file_path}: {e}", file=sys.stderr)
+            print(tb, file=sys.stderr)
             with open(review_file_path, 'w', encoding='utf-8') as out:
-                out.write("自動レビューに失敗しました。担当者に確認してください。")
+                out.write("自動レビューに失敗しました。担当者に確認してください。\n\n")
+                out.write("エラー内容: ")
+                out.write(f"{e}\n\n")
+                out.write("トレースバック:\n")
+                out.write(tb)
+            had_failure = True
 
     print(f"完了: {review_count}/{len(files)} ファイルをレビューしました", file=sys.stderr)
+    # いずれかのレビューに失敗していたら非ゼロ終了させることでGitHub Actionsを失敗させる
+    if had_failure:
+        print("Error: One or more reviews failed; failing process to surface as GitHub Actions failure.", file=sys.stderr)
+        sys.exit(1)
+
     return review_count
 
 def main():

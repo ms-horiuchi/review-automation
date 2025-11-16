@@ -116,13 +116,19 @@ def main():
     code_files = 'decoded_files.txt'
     if Path(code_files).exists():
         print(f"コードファイルのレビューを開始: {code_files}", file=sys.stderr)
-        run_batch_review(code_files, output_dir, use_prompt_map=True)
+        success = run_batch_review(code_files, output_dir, use_prompt_map=True)
+        if not success:
+            print("Error: Batch review for code files failed.", file=sys.stderr)
+            sys.exit(1)
     
     # OCR結果のレビュー
     ocr_files = 'ocr_files_list.txt'
     if Path(ocr_files).exists():
         print(f"OCR結果のレビューを開始: {ocr_files}", file=sys.stderr)
-        run_batch_review(ocr_files, output_dir)
+        success = run_batch_review(ocr_files, output_dir)
+        if not success:
+            print("Error: Batch review for OCR files failed.", file=sys.stderr)
+            sys.exit(1)
     
     # 結果カウント
     review_count = count_reviews(output_dir)

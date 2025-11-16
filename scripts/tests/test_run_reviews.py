@@ -72,4 +72,25 @@ def test_files_present_with_api_key_runs(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert '生成されたレビューファイル数' in captured.err
 
+
+def test_batch_review_failure_causes_exit(monkeypatch, tmp_path, capsys):
+    # set API key
+    monkeypatch.setenv('GEMINI_API_KEY', 'dummy')
+
+    # create decoded file list
+    decoded = tmp_path / 'decoded_files.txt'
+    decoded.write_text("some/code/file.py\n", encoding='utf-8')
+    monkeypatch.chdir(tmp_path)
+
+    # Simulate a failing batch review via return False
+    monkeypatch.setenv('REVIEW_BASE_DIR', str(tmp_path))
+    monkeypatch.setattr(run_reviews, 'run_batch_review', lambda file_list, output_dir, use_prompt_map=False: False)
+
+    with pytest.raises(SystemExit) as ex:
+        run_reviews.main()
+
+    assert ex.value.code == 1
+    captured = capsys.readouterr()
+    assert 'Error: Batch review for code files failed.' in captured.err
+
  
