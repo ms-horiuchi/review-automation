@@ -48,9 +48,12 @@ jobs:
       - name: 📋 レビュー対象拡張子の読み込み
         id: load-extensions
         run: |
+          output=$(python scripts/load_extensions.py)
           echo "extensions_pattern<<EOF" >> "$GITHUB_OUTPUT"
-          python scripts/load_extensions.py
+          echo "$output" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "[debug] extensions_pattern:"
+          echo "$output"
         
       - name: 🔍 変更されたファイルの特定
         id: changed-files
@@ -98,6 +101,9 @@ jobs:
             **/*.png
             **/*.jpg
             **/*.jpeg
+            **/*.PNG
+            **/*.JPG
+            **/*.JPEG
           quotepath: false
           separator: ","
 

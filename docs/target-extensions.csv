@@ -1,3 +1,4 @@
+extension,base_prompt,custom_prompt
 .ts,instruction-review-js.md,instruction-review-custom-js.md
 .js,instruction-review-js.md,instruction-review-custom-js.md
 .tsx,instruction-review-js.md,instruction-review-custom-js.md

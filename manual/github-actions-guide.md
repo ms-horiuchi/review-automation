@@ -8,7 +8,7 @@
   - `GEMINI_API_KEY` (必須): Google Gemini API キー。
   - `GEMINI_MODEL` (任意): 使用したいモデル名。未設定時は `scripts/gemini_cli_wrapper.py` が `gemini-2.5-flash` を既定で利用します。
 - **依存ファイル**:
-  - `docs/target-extensions.csv`: 監視対象のファイル拡張子を列挙した CSV。1 行目はヘッダー、2 行目以降に `.ts` のような拡張子を並べます（CRLF/LF どちらでも可）。
+  - `docs/target-extensions.csv`: 監視対象のファイル拡張子を列挙した CSV。**推奨:1 行目にヘッダー**(`extension,base_prompt,custom_prompt`) を置いてください。古いフォーマット（ヘッダー無し）の CSV もサポートしますが、ヘッダー付きが推奨です（CRLF/LF どちらでも可）。
   - `docs/instruction-review.md`: 基本プロンプト。
   - `docs/instruction-review-custom.md`: ファイル種別ごとの追加指示（任意）。
 - **スクリプト**: 
@@ -24,6 +24,7 @@
 4. **Git 設定**: `core.quotepath=false` を設定し、日本語などのファイル名をエスケープしないようにします。
 5. **レビュー対象拡張子の読み込み**: `docs/target-extensions.csv` を読み込み、`tj-actions/changed-files` の `files` 入力に渡す glob パターン（`**/*.ts` など）を生成します。`tr -d '\r'` を挿んでいるため、CRLF と LF のどちらでも安全に動作します。
 6. **変更ファイルの抽出**: `tj-actions/changed-files@v45` で対象拡張子の変更を洗い出し、カンマ区切りの一覧を出力します。`.d.ts` や `scripts/` 配下のファイルは明示的に除外しています。
+  - 参照: 画像ファイルは `changed-images` ステップで別途抽出します。拡張子に大文字（例: `.PNG`）がある場合もカバーするため、`**/*.PNG` なども含めています。
 7. **ファイル名デコード**: 変更ファイルが存在する場合のみ `scripts/decode_file_paths.py` を実行し、`decoded_files.txt` に UTF-8 のファイルリストを落とします。
 8. **レビュー実行** (`review_process` step):
    - `review/YYYYMMDD` をベースに、同日に複数実行された場合は `_1`, `_2` ... を付与してユニークなディレクトリを作成します。
