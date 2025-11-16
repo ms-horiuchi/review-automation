@@ -93,4 +93,17 @@ def test_batch_review_failure_causes_exit(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert 'Error: Batch review for code files failed.' in captured.err
 
+
+def test_resolve_model_name_ignores_empty_env(monkeypatch):
+    # No GEMINI_MODEL set
+    monkeypatch.delenv('GEMINI_MODEL', raising=False)
+    import scripts.gemini_cli_wrapper as gcw
+    # explicit None should return default
+    assert gcw._resolve_model_name(None) == 'gemini-2.5-flash'
+    # empty env should be ignored
+    monkeypatch.setenv('GEMINI_MODEL', '')
+    assert gcw._resolve_model_name(None) == 'gemini-2.5-flash'
+    # explicit arg should override
+    assert gcw._resolve_model_name('gemini-2.5-flash') == 'gemini-2.5-flash'
+
  

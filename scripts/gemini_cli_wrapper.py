@@ -16,6 +16,22 @@ def setup_genai():
         sys.exit(1)
     genai.configure(api_key=api_key)
 
+
+def _resolve_model_name(explicit_model_name):
+    """Gemini に渡すモデル名を決定する。
+
+    優先順位:
+    - 明示的に渡された model 名（空白のみは無効）
+    - 環境変数 GEMINI_MODEL（空白のみは無効）
+    - デフォルト 'gemini-2.5-flash'
+    """
+    if explicit_model_name and str(explicit_model_name).strip():
+        return str(explicit_model_name).strip()
+    env_model = os.getenv('GEMINI_MODEL')
+    if env_model and str(env_model).strip():
+        return str(env_model).strip()
+    return 'gemini-2.5-flash'
+
 def wait_for_file_active(file_name, timeout=120, interval=2):
     """アップロード済みファイルが ACTIVE になるまで定期的に確認する"""
     deadline = time.time() + timeout
@@ -175,9 +191,8 @@ def get_prompt_parts_for_paths(prompt_paths, uploaded_ids, cache):
 
 def run_review(prompt, file_path=None, model_name=None, prompt_file_ids=None):
     # 呼び出し側でモデルの明示がない場合
-    if not model_name:
-        # 環境変数からモデル情報を取得
-        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+    # モデル名を解決（明示 -> 環境変数 -> デフォルト）
+    model_name = _resolve_model_name(model_name)
     model = genai.GenerativeModel(model_name)
     file_content = ""
     # レビュー対象のファイルがある場合、読み取り
@@ -203,9 +218,9 @@ def run_review(prompt, file_path=None, model_name=None, prompt_file_ids=None):
     contents.extend(build_prompt_file_parts(prompt_file_ids))
     # Print model info and the contents passed to the Gemini SDK so we can
     # verify exactly what is being sent.
-    print(f"Model name variable: {model_name}", file=sys.stderr)
-    print(f"Model object repr: {repr(model)}", file=sys.stderr)
-    print("Contents passed to model.generate_content:", contents, file=sys.stderr)
+    print(f"モデル名（変数）: {model_name}", file=sys.stderr)
+    print(f"モデルオブジェクト repr: {repr(model)}", file=sys.stderr)
+    print("generate_content に渡す contents:", contents, file=sys.stderr)
     response = model.generate_content(contents)
     print(response.text)
 
@@ -245,8 +260,7 @@ def batch_review_files(
     uploaded_prompt_ids = upload_prompt_files(prompt_paths)
     prompt_parts_cache = {}
 
-    if not model_name:
-        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+    model_name = _resolve_model_name(model_name)
     model = genai.GenerativeModel(model_name)
 
     os.makedirs(output_dir, exist_ok=True)
@@ -325,9 +339,9 @@ def batch_review_files(
             contents.extend(prompt_parts)
             # Print model info and the contents passed to the Gemini SDK so we can
             # verify exactly what is being sent.
-            print(f"Model name variable: {model_name}", file=sys.stderr)
-            print(f"Model object repr: {repr(model)}", file=sys.stderr)
-            print("Contents passed to model.generate_content:", contents, file=sys.stderr)
+            print(f"モデル名（変数）: {model_name}", file=sys.stderr)
+            print(f"モデルオブジェクト repr: {repr(model)}", file=sys.stderr)
+            print("generate_content に渡す contents:", contents, file=sys.stderr)
             response = model.generate_content(contents)
 
             with open(review_file_path, 'w', encoding='utf-8') as out:
@@ -396,7 +410,8 @@ def main():
                 idx += 2
                 continue
             if arg == '--model' and idx + 1 < len(args):
-                model_name = args[idx + 1]
+                candidate = args[idx + 1].strip()
+                model_name = candidate if candidate else None
                 idx += 2
                 continue
             print(f"Warning: Unrecognized argument {arg}", file=sys.stderr)
