@@ -1,17 +1,30 @@
 # review-automation
 
-## 使用方法
-### 事前準備
-* プロジェクトのActions用のSecret変数にGEMINI_API_KEYを設定
-### 実行方法
-* プッシュにより自動起動
-   * Github Actionsを使用しているため、自動で呼び出される
-   * geminiを呼び出し、レビュー結果を取得する
-   * /reviewに日付単位でレビュー結果をファイル出力する
+## このリポジトリについて
+- Gemini API を利用してソースコードや OCR 文字起こしの自動レビューを行う仕組みです。
+- GitHub Actions から呼び出され、レビューレポートを `review/` 配下に Markdown で出力します。
+- モデルやプロンプトを差し替えて用途に合わせたレビューを実行できます。
 
-### 参考
-* 関連リポジトリ
-   * DropboxからGitへプッシュするバッチのリポジトリ
-      * https://github.com/ms-horiuchi/dbx-git-sync
-   * GitからDropboxへ対象ディレクトリを同期するバッチのリポジトリ
-      * https://github.com/ms-horiuchi/git-dbx-sync
+## 事前準備
+- GitHub リポジトリシークレットに `GEMINI_API_KEY` を登録します。
+- 任意で `GEMINI_MODEL`（例: `gemini-2.0-flash-lite`) や `REVIEW_BASE_DIR` を設定することで、使用モデルや出力パスを変更できます。
+- プロンプトをカスタマイズする場合は `docs/` 配下のテンプレートを編集します。拡張子ごとのマッピングは `docs/target-extensions.csv` で指定します。
+
+## 主な機能
+- push をトリガーに GitHub Actions が自動レビューを実行し、コードと OCR 文字起こしの双方をカバーします。
+- レビュー対象ファイルは前段の処理で生成されたリストから自動で取得されるため、ユーザ操作は不要です。
+- Gemini API から取得した結果をファイルごとの Markdown レポートとして `review/<日付>[_番号]/` に保存します。
+- エラー時には詳細な原因とトレースバックを同レポートに追記し、GitHub Actions を失敗として終了させます。
+- 拡張子ごとのプロンプト指定や共通テンプレートを使ってレビュー観点を柔軟に切り替えられます。
+
+## 出力と確認方法
+- `review/<日付>[_番号]/` 以下に対象ファイルごとの Markdown レポートが生成されます。
+
+## よく使うカスタマイズ
+- `REVIEW_BASE_DIR` を設定すると出力先ディレクトリを変更できます。
+- 追加のプロンプトファイルは `docs/` に配置して `target-extensions.csv` に追記することで利用できます。
+- 古いレビュー結果が不要になった場合は `review/` 配下の該当ディレクトリを削除してください。
+
+## 参考資料
+- `docs/instruction-review.md` に共通のレビュー指示が記載されています。
+- 言語別・用途別のカスタム指示は `docs/instruction-review-*.md` を参照してください。
